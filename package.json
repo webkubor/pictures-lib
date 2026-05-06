@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "node scripts/build-static.mjs",
-    "pages:deploy": "pnpm build && CLOUDFLARE_ACCOUNT_ID=916ebb1b9f240bf4c8826021dd161692 wrangler pages deploy dist --project-name pictures-lib --branch main --commit-dirty=true"
+    "pages:deploy": "pnpm run pages:deploy:manual",
+    "pages:deploy:manual": "pnpm build && CLOUDFLARE_ACCOUNT_ID=916ebb1b9f240bf4c8826021dd161692 wrangler pages deploy dist --project-name pictures-lib --branch main --commit-dirty=true"
   },
   "packageManager": "pnpm@10.25.0"
 }
