@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Pictures Lib</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #1c1813;
+        --muted: #746b5f;
+        --paper: #f4eadb;
+        --panel: rgba(255, 250, 240, 0.78);
+        --line: rgba(28, 24, 19, 0.14);
+        --accent: #cf5b2c;
+        --accent-2: #1d6a73;
+        --shadow: 0 24px 70px rgba(58, 36, 16, 0.18);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: "Avenir Next", "PingFang SC", "Hiragino Sans GB", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 12% 8%, rgba(207, 91, 44, 0.22), transparent 28rem),
+          radial-gradient(circle at 86% 4%, rgba(29, 106, 115, 0.22), transparent 28rem),
+          linear-gradient(135deg, #f9f1e6 0%, #eadcc8 48%, #f6ebd7 100%);
+      }
+
+      body::before {
+        content: "";
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.32;
+        background-image: linear-gradient(rgba(28, 24, 19, 0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(28, 24, 19, 0.05) 1px, transparent 1px);
+        background-size: 32px 32px;
+        mask-image: linear-gradient(to bottom, #000, transparent 75%);
+      }
+
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        backdrop-filter: blur(18px);
+        background: rgba(244, 234, 219, 0.78);
+        border-bottom: 1px solid var(--line);
+      }
+
+      .shell { width: min(1440px, calc(100vw - 32px)); margin: 0 auto; }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 24px;
+        align-items: end;
+        padding: 30px 0 22px;
+      }
+
+      h1 {
+        margin: 0;
+        font-family: Georgia, "Songti SC", serif;
+        font-size: clamp(42px, 7vw, 92px);
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+      }
+
+      .subtitle { margin: 14px 0 0; color: var(--muted); max-width: 760px; }
+
+      .stats { display: grid; grid-template-columns: repeat(4, minmax(110px, 1fr)); gap: 10px; }
+
+      .stat {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: var(--panel);
+        box-shadow: 0 12px 30px rgba(58, 36, 16, 0.08);
+      }
+
+      .stat strong { display: block; font-size: 26px; line-height: 1; }
+      .stat span { display: block; margin-top: 6px; color: var(--muted); font-size: 12px; }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) 160px 160px;
+        gap: 10px;
+        padding: 0 0 18px;
+      }
+
+      input, select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 12px 14px;
+        color: var(--ink);
+        background: rgba(255, 250, 240, 0.9);
+        font: inherit;
+        outline: none;
+      }
+
+      input:focus, select:focus { border-color: rgba(207, 91, 44, 0.72); box-shadow: 0 0 0 4px rgba(207, 91, 44, 0.12); }
+
+      main { padding: 24px 0 56px; }
+
+      .meta-line { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+        gap: 16px;
+      }
+
+      .card {
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        background: rgba(255, 250, 240, 0.76);
+        box-shadow: var(--shadow);
+        transform: translateY(8px);
+        animation: rise 0.48s ease forwards;
+      }
+
+      .thumb {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1;
+        object-fit: cover;
+        background: linear-gradient(135deg, rgba(29, 106, 115, 0.16), rgba(207, 91, 44, 0.12));
+      }
+
+      .body { padding: 12px; }
+      .source { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 5px 9px; font-size: 12px; color: #fff; background: var(--accent); }
+      .source.r2 { background: var(--accent-2); }
+      .name { margin: 10px 0 6px; font-size: 13px; line-height: 1.35; word-break: break-all; }
+      .details { color: var(--muted); font-size: 12px; }
+
+      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      .actions a, .actions button {
+        flex: 1;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px 10px;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.58);
+        text-align: center;
+        text-decoration: none;
+        font: inherit;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      .actions a:hover, .actions button:hover { border-color: rgba(28, 24, 19, 0.28); background: #fff9ee; }
+
+      .empty {
+        display: none;
+        padding: 42px;
+        border: 1px dashed var(--line);
+        border-radius: 24px;
+        text-align: center;
+        color: var(--muted);
+        background: var(--panel);
+      }
+
+      @keyframes rise { to { transform: translateY(0); } }
+
+      @media (max-width: 760px) {
+        .hero { grid-template-columns: 1fr; }
+        .stats { grid-template-columns: repeat(2, 1fr); }
+        .toolbar { grid-template-columns: 1fr; }
+        .grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="shell">
+        <section class="hero">
+          <div>
+            <h1>Pictures Lib</h1>
+            <p class="subtitle">统一查看 GitHub 图床和 Cloudflare R2 图床里的历史图片。支持来源、目录、文件名搜索，卡片里可以打开原图或复制 URL。</p>
+          </div>
+          <div class="stats" id="stats"></div>
+        </section>
+        <section class="toolbar">
+          <input id="search" type="search" placeholder="搜索文件名、目录、URL..." />
+          <select id="source"><option value="all">全部来源</option></select>
+          <select id="folder"><option value="all">全部目录</option></select>
+        </section>
+      </div>
+    </header>
+    <main class="shell">
+      <div class="meta-line" id="meta"></div>
+      <section class="grid" id="grid"></section>
+      <section class="empty" id="empty">没有匹配的图片。</section>
+    </main>
+    <script>
+      const state = { items: [], filtered: [], source: 'all', folder: 'all', query: '' };
+      const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
+
+      const $ = (id) => document.getElementById(id);
+      const formatBytes = (bytes) => {
+        if (!bytes) return 'unknown size';
+        if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+        return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+      };
+
+      function option(value, label) {
+        const node = document.createElement('option');
+        node.value = value;
+        node.textContent = label;
+        return node;
+      }
+
+      function renderStats(data) {
+        const stats = [
+          ['总图片', data.summary.total],
+          ['GitHub', data.sources.github.imagesTotal],
+          ['R2 图片', data.sources.r2.imagesTotal],
+          ['R2 非图片略过', data.sources.r2.nonImagesTotal],
+        ];
+        $('stats').replaceChildren(...stats.map(([label, value]) => {
+          const node = document.createElement('div');
+          node.className = 'stat';
+          node.innerHTML = `<strong>${value}</strong><span>${label}</span>`;
+          return node;
+        }));
+      }
+
+      function setupFilters(items) {
+        const sources = [...new Set(items.map((item) => item.source))].sort(collator.compare);
+        $('source').append(...sources.map((source) => option(source, source === 'r2' ? 'Cloudflare R2' : 'GitHub')));
+        updateFolderOptions();
+      }
+
+      function updateFolderOptions() {
+        const sourceItems = state.source === 'all' ? state.items : state.items.filter((item) => item.source === state.source);
+        const folders = [...new Set(sourceItems.map((item) => item.folder))].sort(collator.compare);
+        $('folder').replaceChildren(option('all', '全部目录'), ...folders.map((folder) => option(folder, folder)));
+        if (!folders.includes(state.folder)) state.folder = 'all';
+        $('folder').value = state.folder;
+      }
+
+      function matches(item) {
+        const query = state.query.trim().toLowerCase();
+        if (state.source !== 'all' && item.source !== state.source) return false;
+        if (state.folder !== 'all' && item.folder !== state.folder) return false;
+        if (!query) return true;
+        return [item.path, item.name, item.folder, item.url].some((value) => String(value || '').toLowerCase().includes(query));
+      }
+
+      function render() {
+        state.filtered = state.items.filter(matches);
+        $('meta').textContent = `当前显示 ${state.filtered.length} / ${state.items.length} 张。快照时间：${new Date(window.galleryGeneratedAt).toLocaleString()}`;
+        $('empty').style.display = state.filtered.length ? 'none' : 'block';
+        $('grid').replaceChildren(...state.filtered.map(renderCard));
+      }
+
+      function renderCard(item, index) {
+        const card = document.createElement('article');
+        card.className = 'card';
+        card.style.animationDelay = `${Math.min(index, 24) * 18}ms`;
+        card.innerHTML = `
+          <img class="thumb" src="${item.url}" alt="${escapeHtml(item.name)}" loading="lazy" referrerpolicy="no-referrer" />
+          <div class="body">
+            <span class="source ${item.source}">${item.source === 'r2' ? 'R2' : 'GitHub'}</span>
+            <div class="name">${escapeHtml(item.path)}</div>
+            <div class="details">${escapeHtml(item.folder)} · ${formatBytes(item.size)}${item.lastModified ? ` · ${new Date(item.lastModified).toLocaleDateString()}` : ''}</div>
+            <div class="actions">
+              <a href="${item.url}" target="_blank" rel="noreferrer">打开</a>
+              <button type="button">复制 URL</button>
+            </div>
+          </div>
+        `;
+        card.querySelector('button').addEventListener('click', async () => {
+          await navigator.clipboard.writeText(item.url);
+          card.querySelector('button').textContent = '已复制';
+          setTimeout(() => { card.querySelector('button').textContent = '复制 URL'; }, 1000);
+        });
+        return card;
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[char]));
+      }
+
+      async function boot() {
+        const data = await fetch('./data/assets.json').then((response) => response.json());
+        window.galleryGeneratedAt = data.generatedAt;
+        state.items = data.items;
+        renderStats(data);
+        setupFilters(state.items);
+        render();
+      }
+
+      $('search').addEventListener('input', (event) => { state.query = event.target.value; render(); });
+      $('source').addEventListener('change', (event) => { state.source = event.target.value; updateFolderOptions(); render(); });
+      $('folder').addEventListener('change', (event) => { state.folder = event.target.value; render(); });
+
+      boot().catch((error) => {
+        $('meta').textContent = `加载失败：${error.message}`;
+      });
+    </script>
+  </body>
+</html>

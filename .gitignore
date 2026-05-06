@@ -1,0 +1,8 @@
+.DS_Store
+.server.*
+.playwright-mcp/
+.wrangler/
+dist/
+node_modules/
+.env
+.env.*
