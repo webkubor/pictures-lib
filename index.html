@@ -85,7 +85,7 @@
 
       .toolbar {
         display: grid;
-        grid-template-columns: minmax(180px, 1fr) 160px 160px;
+        grid-template-columns: minmax(180px, 1fr) 160px 160px 220px;
         gap: 10px;
         padding: 0 0 18px;
       }
@@ -137,9 +137,10 @@
       .name { margin: 10px 0 6px; font-size: 13px; line-height: 1.35; word-break: break-all; }
       .details { color: var(--muted); font-size: 12px; }
 
-      .actions { display: flex; gap: 8px; margin-top: 12px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
       .actions a, .actions button {
         flex: 1;
+        min-width: 72px;
         border: 1px solid var(--line);
         border-radius: 12px;
         padding: 8px 10px;
@@ -153,6 +154,9 @@
       }
 
       .actions a:hover, .actions button:hover { border-color: rgba(28, 24, 19, 0.28); background: #fff9ee; }
+      .actions .danger { color: #8c1f16; border-color: rgba(140, 31, 22, 0.28); }
+      .actions .danger:hover { background: #fff1ed; border-color: rgba(140, 31, 22, 0.46); }
+      .actions button:disabled { cursor: wait; opacity: 0.68; }
 
       .empty {
         display: none;
@@ -180,7 +184,7 @@
         <section class="hero">
           <div>
             <h1>Pictures Lib</h1>
-            <p class="subtitle">统一查看 GitHub 图床和 Cloudflare R2 图床里的历史图片。支持来源、目录、文件名搜索，卡片里可以打开原图或复制 URL。</p>
+            <p class="subtitle">统一查看 GitHub 图床和 Cloudflare R2 图床里的历史图片。R2 图片支持鉴权后真删除；GitHub 图床只查看，不在这里删除。</p>
           </div>
           <div class="stats" id="stats"></div>
         </section>
@@ -188,6 +192,7 @@
           <input id="search" type="search" placeholder="搜索文件名、目录、URL..." />
           <select id="source"><option value="all">全部来源</option></select>
           <select id="folder"><option value="all">全部目录</option></select>
+          <input id="adminToken" type="password" placeholder="R2 删除口令" autocomplete="off" />
         </section>
       </div>
     </header>
@@ -197,7 +202,18 @@
       <section class="empty" id="empty">没有匹配的图片。</section>
     </main>
     <script>
-      const state = { items: [], filtered: [], source: 'all', folder: 'all', query: '' };
+      const ADMIN_TOKEN_KEY = 'pictures-lib-admin-token';
+      const DELETED_R2_KEY = 'pictures-lib-deleted-r2-paths';
+      const state = {
+        items: [],
+        filtered: [],
+        source: 'all',
+        folder: 'all',
+        query: '',
+        r2NonImagesTotal: 0,
+        adminToken: localStorage.getItem(ADMIN_TOKEN_KEY) || '',
+        deletedR2Paths: readDeletedR2Paths(),
+      };
       const collator = new Intl.Collator('zh-CN', { numeric: true, sensitivity: 'base' });
 
       const $ = (id) => document.getElementById(id);
@@ -214,12 +230,26 @@
         return node;
       }
 
-      function renderStats(data) {
+      function readDeletedR2Paths() {
+        try {
+          return new Set(JSON.parse(localStorage.getItem(DELETED_R2_KEY) || '[]'));
+        } catch {
+          return new Set();
+        }
+      }
+
+      function saveDeletedR2Paths() {
+        localStorage.setItem(DELETED_R2_KEY, JSON.stringify([...state.deletedR2Paths]));
+      }
+
+      function renderStats() {
+        const githubTotal = state.items.filter((item) => item.source === 'github').length;
+        const r2Total = state.items.filter((item) => item.source === 'r2').length;
         const stats = [
-          ['总图片', data.summary.total],
-          ['GitHub', data.sources.github.imagesTotal],
-          ['R2 图片', data.sources.r2.imagesTotal],
-          ['R2 非图片略过', data.sources.r2.nonImagesTotal],
+          ['总图片', state.items.length],
+          ['GitHub', githubTotal],
+          ['R2 图片', r2Total],
+          ['R2 非图片略过', state.r2NonImagesTotal],
         ];
         $('stats').replaceChildren(...stats.map(([label, value]) => {
           const node = document.createElement('div');
@@ -270,16 +300,68 @@
             <div class="details">${escapeHtml(item.folder)} · ${formatBytes(item.size)}${item.lastModified ? ` · ${new Date(item.lastModified).toLocaleDateString()}` : ''}</div>
             <div class="actions">
               <a href="${item.url}" target="_blank" rel="noreferrer">打开</a>
-              <button type="button">复制 URL</button>
+              <button class="copy-action" type="button">复制 URL</button>
+              ${item.source === 'r2' ? '<button class="danger delete-action" type="button">删除 R2</button>' : ''}
             </div>
           </div>
         `;
-        card.querySelector('button').addEventListener('click', async () => {
+        const copyButton = card.querySelector('.copy-action');
+        copyButton.addEventListener('click', async () => {
           await navigator.clipboard.writeText(item.url);
-          card.querySelector('button').textContent = '已复制';
-          setTimeout(() => { card.querySelector('button').textContent = '复制 URL'; }, 1000);
+          copyButton.textContent = '已复制';
+          setTimeout(() => { copyButton.textContent = '复制 URL'; }, 1000);
         });
+
+        const deleteButton = card.querySelector('.delete-action');
+        if (deleteButton) {
+          deleteButton.addEventListener('click', () => deleteR2Item(item, deleteButton));
+        }
         return card;
+      }
+
+      async function deleteR2Item(item, button) {
+        const token = state.adminToken.trim();
+        if (!token) {
+          $('adminToken').focus();
+          window.alert('先输入 R2 删除口令。');
+          return;
+        }
+
+        if (!window.confirm(`确认从 R2 真删除这个源文件？\n\n${item.path}\n\n删除后不可恢复。`)) return;
+        const typedPath = window.prompt('为避免误删，请输入完整 R2 路径确认：');
+        if (typedPath !== item.path) {
+          window.alert('路径不匹配，已取消删除。');
+          return;
+        }
+
+        button.disabled = true;
+        button.textContent = '删除中...';
+
+        try {
+          const response = await fetch('/api/assets/delete', {
+            method: 'POST',
+            headers: {
+              authorization: `Bearer ${token}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({ source: item.source, path: item.path }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok || !payload.ok) {
+            throw new Error(payload.error || `Delete failed with HTTP ${response.status}`);
+          }
+
+          state.deletedR2Paths.add(item.path);
+          saveDeletedR2Paths();
+          state.items = state.items.filter((candidate) => !(candidate.source === 'r2' && candidate.path === item.path));
+          updateFolderOptions();
+          renderStats();
+          render();
+        } catch (error) {
+          button.disabled = false;
+          button.textContent = '删除 R2';
+          window.alert(`删除失败：${error.message}`);
+        }
       }
 
       function escapeHtml(value) {
@@ -289,8 +371,10 @@
       async function boot() {
         const data = await fetch('./data/assets.json').then((response) => response.json());
         window.galleryGeneratedAt = data.generatedAt;
-        state.items = data.items;
-        renderStats(data);
+        state.r2NonImagesTotal = data.sources.r2.nonImagesTotal;
+        state.items = data.items.filter((item) => !(item.source === 'r2' && state.deletedR2Paths.has(item.path)));
+        $('adminToken').value = state.adminToken;
+        renderStats();
         setupFilters(state.items);
         render();
       }
@@ -298,6 +382,11 @@
       $('search').addEventListener('input', (event) => { state.query = event.target.value; render(); });
       $('source').addEventListener('change', (event) => { state.source = event.target.value; updateFolderOptions(); render(); });
       $('folder').addEventListener('change', (event) => { state.folder = event.target.value; render(); });
+      $('adminToken').addEventListener('input', (event) => {
+        state.adminToken = event.target.value.trim();
+        if (state.adminToken) localStorage.setItem(ADMIN_TOKEN_KEY, state.adminToken);
+        else localStorage.removeItem(ADMIN_TOKEN_KEY);
+      });
 
       boot().catch((error) => {
         $('meta').textContent = `加载失败：${error.message}`;

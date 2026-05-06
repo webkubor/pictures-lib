@@ -19,6 +19,22 @@ pnpm build
 
 产物输出到 `dist/`，只包含线上需要的 `index.html` 和 `data/assets.json`。
 
+## R2 Delete
+
+图库只支持 Cloudflare R2 真删除：
+
+- 前端只有 R2 卡片显示 `删除 R2`
+- 服务端入口：`POST /api/assets/delete`
+- 删除前需要 `PICTURES_ADMIN_TOKEN`
+- GitHub 图床只查看，不从这个站点删除
+
+Cloudflare Pages 需要配置：
+
+- R2 binding：`PICTURES_R2` -> bucket `images`
+- Secret：`PICTURES_ADMIN_TOKEN`
+
+本地口令只放 `.env.local`，不要提交。
+
 ## CI/CD
 
 主发布链路是 GitHub Actions：
