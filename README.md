@@ -37,6 +37,7 @@ pnpm build
 - 前端只有 R2 卡片显示 `删除 R2`
 - 服务端入口：`POST /api/assets/delete`
 - 删除前需要 `PICTURES_ADMIN_TOKEN`
+- 前端不会硬编码口令；第一次删除时输入一次，浏览器本机保存，后续复用
 - GitHub 图床只查看，不从这个站点删除
 
 Cloudflare Pages 需要配置：

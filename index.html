@@ -112,7 +112,7 @@
         padding: 0 0 18px;
       }
 
-      input, select {
+      input, select, .toolbar-button {
         width: 100%;
         border: 1px solid var(--line);
         border-radius: 16px;
@@ -123,7 +123,17 @@
         outline: none;
       }
 
-      input:focus, select:focus { border-color: rgba(207, 91, 44, 0.72); box-shadow: 0 0 0 4px rgba(207, 91, 44, 0.12); }
+      .toolbar-button {
+        cursor: pointer;
+        text-align: left;
+      }
+
+      .toolbar-button.saved {
+        border-color: rgba(29, 106, 115, 0.28);
+        color: var(--accent-2);
+      }
+
+      input:focus, select:focus, .toolbar-button:focus { border-color: rgba(207, 91, 44, 0.72); box-shadow: 0 0 0 4px rgba(207, 91, 44, 0.12); }
 
       main { padding: 24px 0 56px; }
 
@@ -247,6 +257,61 @@
       .actions .danger:hover { background: #fff1ed; border-color: rgba(140, 31, 22, 0.46); }
       .actions button:disabled { cursor: wait; opacity: 0.68; }
 
+      .token-dialog {
+        width: min(420px, calc(100vw - 32px));
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 0;
+        color: var(--ink);
+        background: var(--panel-strong);
+        box-shadow: var(--shadow);
+      }
+
+      .token-dialog::backdrop {
+        background: rgba(28, 24, 19, 0.34);
+        backdrop-filter: blur(4px);
+      }
+
+      .token-panel {
+        display: grid;
+        gap: 14px;
+        padding: 24px;
+      }
+
+      .token-panel h2 {
+        margin: 0;
+        font-family: Georgia, "Songti SC", serif;
+        font-size: 28px;
+      }
+
+      .token-panel p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .dialog-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+      }
+
+      .dialog-actions button {
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 10px 14px;
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.48);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .dialog-actions button.primary {
+        border-color: rgba(29, 106, 115, 0.38);
+        color: #fff;
+        background: var(--accent-2);
+      }
+
       .empty {
         display: none;
         padding: 42px;
@@ -298,7 +363,7 @@
             <option value="name">文件名 A-Z</option>
             <option value="size">文件大小优先</option>
           </select>
-          <input id="adminToken" type="password" placeholder="R2 删除口令" autocomplete="off" />
+          <button class="toolbar-button" id="adminTokenControl" type="button">删除口令：点击设置</button>
         </form>
       </div>
     </header>
@@ -307,6 +372,18 @@
       <section class="grid" id="grid"></section>
       <section class="empty" id="empty">没有匹配的图片。</section>
     </main>
+    <dialog class="token-dialog" id="tokenDialog">
+      <form class="token-panel" id="tokenDialogForm">
+        <h2>R2 删除口令</h2>
+        <p>输入一次，本机浏览器会记住。口令不会写进页面代码；后端仍用 Cloudflare Secret 校验。</p>
+        <input type="text" autocomplete="username" value="pictures-lib-admin" hidden aria-hidden="true" tabindex="-1" />
+        <input id="tokenDialogInput" type="password" autocomplete="current-password" placeholder="输入删除口令" />
+        <div class="dialog-actions">
+          <button id="tokenDialogCancel" type="button">取消</button>
+          <button class="primary" type="submit">保存并继续</button>
+        </div>
+      </form>
+    </dialog>
     <script>
       const ADMIN_TOKEN_KEY = 'pictures-lib-admin-token';
       const DELETED_R2_KEY = 'pictures-lib-deleted-r2-paths';
@@ -475,20 +552,91 @@
         return card;
       }
 
-      async function deleteR2Item(item, button) {
-        const token = state.adminToken.trim();
-        if (!token) {
-          $('adminToken').focus();
-          window.alert('先输入 R2 删除口令。');
-          return;
+      function rememberAdminToken(token) {
+        state.adminToken = token.trim();
+        if (state.adminToken) localStorage.setItem(ADMIN_TOKEN_KEY, state.adminToken);
+        else localStorage.removeItem(ADMIN_TOKEN_KEY);
+        updateAdminTokenStatus();
+      }
+
+      function clearAdminToken() {
+        state.adminToken = '';
+        localStorage.removeItem(ADMIN_TOKEN_KEY);
+        updateAdminTokenStatus();
+      }
+
+      function updateAdminTokenStatus() {
+        const control = $('adminTokenControl');
+        const hasToken = Boolean(state.adminToken.trim());
+        control.textContent = hasToken ? '删除口令：已记住' : '删除口令：点击设置';
+        control.title = hasToken ? '点击清除本机保存的 R2 删除口令' : '删除时也会自动询问并记住';
+        control.classList.toggle('saved', hasToken);
+      }
+
+      function requestAdminToken() {
+        const currentToken = state.adminToken.trim();
+        if (currentToken) return Promise.resolve(currentToken);
+
+        const dialog = $('tokenDialog');
+        const form = $('tokenDialogForm');
+        const input = $('tokenDialogInput');
+        const cancel = $('tokenDialogCancel');
+        input.value = '';
+
+        if (typeof dialog.showModal !== 'function') {
+          const token = window.prompt('输入一次 R2 删除口令，本机浏览器会记住：');
+          if (!token?.trim()) return Promise.resolve('');
+          rememberAdminToken(token);
+          return Promise.resolve(state.adminToken);
         }
 
+        return new Promise((resolve) => {
+          let settled = false;
+          const settle = (token) => {
+            if (settled) return;
+            settled = true;
+            form.removeEventListener('submit', onSubmit);
+            cancel.removeEventListener('click', onCancel);
+            dialog.removeEventListener('cancel', onCancel);
+            dialog.removeEventListener('close', onClose);
+            if (dialog.open) dialog.close();
+            resolve(token);
+          };
+          const onSubmit = (event) => {
+            event.preventDefault();
+            const token = input.value.trim();
+            if (!token) {
+              input.focus();
+              return;
+            }
+            rememberAdminToken(token);
+            settle(state.adminToken);
+          };
+          const onCancel = (event) => {
+            event.preventDefault();
+            settle('');
+          };
+          const onClose = () => settle('');
+
+          form.addEventListener('submit', onSubmit);
+          cancel.addEventListener('click', onCancel);
+          dialog.addEventListener('cancel', onCancel);
+          dialog.addEventListener('close', onClose);
+          dialog.showModal();
+          requestAnimationFrame(() => input.focus());
+        });
+      }
+
+      async function deleteR2Item(item, button) {
         if (!window.confirm(`确认从 R2 真删除这个源文件？\n\n${item.path}\n\n删除后不可恢复。`)) return;
         const typedPath = window.prompt('为避免误删，请输入完整 R2 路径确认：');
         if (typedPath !== item.path) {
           window.alert('路径不匹配，已取消删除。');
           return;
         }
+
+        const token = await requestAdminToken();
+        if (!token) return;
 
         button.disabled = true;
         button.textContent = '删除中...';
@@ -504,6 +652,10 @@
           });
           const payload = await response.json().catch(() => ({}));
           if (!response.ok || !payload.ok) {
+            if (response.status === 401) {
+              clearAdminToken();
+              throw new Error('删除口令不正确，已清除本机保存的口令。');
+            }
             throw new Error(payload.error || `Delete failed with HTTP ${response.status}`);
           }
 
@@ -529,7 +681,7 @@
         window.galleryGeneratedAt = data.generatedAt;
         state.r2NonImagesTotal = data.sources.r2.nonImagesTotal;
         state.items = data.items.filter((item) => !(item.source === 'r2' && state.deletedR2Paths.has(item.path)));
-        $('adminToken').value = state.adminToken;
+        updateAdminTokenStatus();
         renderStats();
         setupFilters(state.items);
         render();
@@ -540,10 +692,12 @@
       $('source').addEventListener('change', (event) => { state.source = event.target.value; updateFolderOptions(); render(); });
       $('folder').addEventListener('change', (event) => { state.folder = event.target.value; render(); });
       $('sort').addEventListener('change', (event) => { state.sort = event.target.value; render(); });
-      $('adminToken').addEventListener('input', (event) => {
-        state.adminToken = event.target.value.trim();
-        if (state.adminToken) localStorage.setItem(ADMIN_TOKEN_KEY, state.adminToken);
-        else localStorage.removeItem(ADMIN_TOKEN_KEY);
+      $('adminTokenControl').addEventListener('click', async () => {
+        if (state.adminToken.trim()) {
+          if (window.confirm('清除本机保存的 R2 删除口令？')) clearAdminToken();
+          return;
+        }
+        await requestAdminToken();
       });
 
       boot().catch((error) => {
