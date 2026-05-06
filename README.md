@@ -5,6 +5,17 @@
 - GitHub 图床：`webkubor/picx-images-hosting`
 - Cloudflare R2：`https://img.webkubor.online`
 
+页面默认按上传/修改时间倒序展示。R2 对象有 `uploadedAt/lastModified`；GitHub 当前使用 tree API 生成快照，逐文件上传时间缺失时会显示 `上传时间未知` 并排在有时间信息的图片后面。
+
+每张图片卡片展示：
+
+- 来源
+- 上传/修改时间
+- 文件大小
+- 图片类型
+- 顶层目录
+- 原图 URL 操作
+
 ## Refresh
 
 ```bash

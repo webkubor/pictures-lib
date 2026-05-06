@@ -11,6 +11,7 @@ const R2_PUBLIC_BASE = 'https://img.webkubor.online/';
 const encodePath = (value) => value.split('/').map(encodeURIComponent).join('/');
 const firstSegment = (value) => (value.includes('/') ? value.split('/')[0] : '(root)');
 const bytesToMb = (bytes) => Math.round((bytes / 1024 / 1024) * 100) / 100;
+const timestamp = (value) => (value ? Date.parse(value) || 0 : 0);
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
@@ -47,6 +48,7 @@ async function fetchGithubImages() {
       size: item.size ?? null,
       sizeMb: typeof item.size === 'number' ? bytesToMb(item.size) : null,
       contentType: inferContentType(item.path),
+      uploadedAt: null,
       lastModified: null,
       url: `${GITHUB_PAGES_BASE}${encodePath(item.path)}`,
       rawUrl: `${GITHUB_RAW_BASE}${encodePath(item.path)}`,
@@ -115,6 +117,7 @@ async function fetchR2Objects() {
       size: item.size ?? null,
       sizeMb: typeof item.size === 'number' ? bytesToMb(item.size) : null,
       contentType: item.http_metadata?.contentType || item.http_metadata?.content_type || inferContentType(item.key),
+      uploadedAt: item.last_modified || null,
       lastModified: item.last_modified || null,
       url: `${R2_PUBLIC_BASE}${encodePath(item.key)}`,
       etag: item.etag || null,
@@ -149,10 +152,10 @@ function summarize(items) {
 async function main() {
   const [github, r2] = await Promise.all([fetchGithubImages(), fetchR2Objects()]);
   const items = [...github, ...r2.images].sort((a, b) => {
-    if (a.source !== b.source) return a.source.localeCompare(b.source);
-    const dateA = a.lastModified ? Date.parse(a.lastModified) : 0;
-    const dateB = b.lastModified ? Date.parse(b.lastModified) : 0;
+    const dateA = timestamp(a.uploadedAt || a.lastModified);
+    const dateB = timestamp(b.uploadedAt || b.lastModified);
     if (dateA !== dateB) return dateB - dateA;
+    if (a.source !== b.source) return a.source.localeCompare(b.source);
     return a.path.localeCompare(b.path);
   });
 
