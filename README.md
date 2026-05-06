@@ -35,6 +35,7 @@ pnpm build
 图库只支持 Cloudflare R2 真删除：
 
 - 前端只有 R2 卡片显示 `删除 R2`
+- R2 支持单张删除和多选批量删除；批量删除复用同一个服务端删除接口逐个执行
 - 服务端入口：`POST /api/assets/delete`
 - 删除前需要 `PICTURES_ADMIN_TOKEN`
 - 前端不会硬编码口令；第一次删除时输入一次，浏览器本机保存，后续复用
